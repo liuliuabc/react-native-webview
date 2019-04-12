@@ -161,6 +161,7 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
      */
     public boolean onJsAlert(WebView view, String url, String message,
             JsResult result) {
+      try {
         final AlertDialog.Builder builder = new AlertDialog.Builder(view.getContext());
 
         builder.setTitle("来自"+url+"对话框")
@@ -179,7 +180,10 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
         AlertDialog dialog = builder.create();
         dialog.show();
         result.confirm();// 因为没有绑定事件，需要强行confirm,否则页面会变黑显示不了内容。
-        return true;
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+      return true;
         // return super.onJsAlert(view, url, message, result);
     }
 
@@ -193,6 +197,7 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
      */
     public boolean onJsConfirm(WebView view, String url, String message,
             final JsResult result) {
+      try {
         final AlertDialog.Builder builder = new AlertDialog.Builder(view.getContext());
         builder.setTitle("来自"+url+"对话框")
                 .setMessage(message)
@@ -224,7 +229,10 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
         // builder.setCancelable(false);
         AlertDialog dialog = builder.create();
         dialog.show();
-        return true;
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+      return true;
         // return super.onJsConfirm(view, url, message, result);
     }
 
@@ -234,6 +242,7 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
      */
     public boolean onJsPrompt(WebView view, String url, String message,
             String defaultValue, final JsPromptResult result) {
+      try {
         final AlertDialog.Builder builder = new AlertDialog.Builder(view.getContext());
 
         builder.setTitle("来自"+url+"对话框").setMessage(message);
@@ -265,7 +274,10 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
         // builder.setCancelable(false);
         AlertDialog dialog = builder.create();
         dialog.show();
-        return true;
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+      return true;
         // return super.onJsPrompt(view, url, message, defaultValue,
         // result);
     }
@@ -336,7 +348,6 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
     if (ReactBuildConfig.DEBUG && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
       WebView.setWebContentsDebuggingEnabled(true);
     }
-
     webView.setDownloadListener(new DownloadListener() {
       public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
         RNCWebViewModule module = getModule(reactContext);
