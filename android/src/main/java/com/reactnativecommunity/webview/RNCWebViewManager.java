@@ -10,6 +10,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup.LayoutParams;
 import android.webkit.ConsoleMessage;
@@ -59,10 +60,13 @@ import java.net.URLEncoder;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+
 import android.webkit.JsPromptResult;
 import android.webkit.JsResult;
 import android.webkit.WebView;
+
 import javax.annotation.Nullable;
+
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.DialogInterface.OnCancelListener;
@@ -150,137 +154,127 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
     webView.setWebChromeClient(new WebChromeClient() {
       @Override
       public boolean onConsoleMessage(ConsoleMessage message) {
+        System.out.println("RNCWebViewManager-console.log:[message=" + message.message() + ";linNum=" + message.lineNumber() + ";sourceId=" + message.sourceId() + ";messageLevel=" + message.messageLevel() + "]");
         if (ReactBuildConfig.DEBUG) {
           return super.onConsoleMessage(message);
         }
         // Ignore console logs in non debug builds.
         return true;
       }
- /**
-     * 覆盖默认的window.alert展示界面，避免title里显示为“：来自file:////”
-     */
-    public boolean onJsAlert(WebView view, String url, String message,
-            JsResult result) {
-      try {
+
+      /**
+       * 覆盖默认的window.alert展示界面，避免title里显示为“：来自file:////”
+       */
+      public boolean onJsAlert(WebView view, String url, String message,
+                               JsResult result) {
         final AlertDialog.Builder builder = new AlertDialog.Builder(view.getContext());
 
-        builder.setTitle("来自"+url+"对话框")
-                .setMessage(message)
-                .setPositiveButton("确定", null);
+        builder.setTitle("来自" + url + "对话框")
+          .setMessage(message)
+          .setPositiveButton("确定", null);
 
         // 不需要绑定按键事件
         // 屏蔽keycode等于84之类的按键
         builder.setOnKeyListener(new OnKeyListener() {
-            public boolean onKey(DialogInterface dialog, int keyCode,KeyEvent event) {
-                return true;
-            }
+          public boolean onKey(DialogInterface dialog, int keyCode, KeyEvent event) {
+            return true;
+          }
         });
         // 禁止响应按back键的事件
         builder.setCancelable(false);
         AlertDialog dialog = builder.create();
         dialog.show();
         result.confirm();// 因为没有绑定事件，需要强行confirm,否则页面会变黑显示不了内容。
-      } catch (Exception e) {
-        e.printStackTrace();
-      }
-      return true;
+        return true;
         // return super.onJsAlert(view, url, message, result);
-    }
+      }
 
-    public boolean onJsBeforeUnload(WebView view, String url,
-            String message, JsResult result) {
+      public boolean onJsBeforeUnload(WebView view, String url,
+                                      String message, JsResult result) {
         return super.onJsBeforeUnload(view, url, message, result);
-    }
+      }
 
-    /**
-     * 覆盖默认的window.confirm展示界面，避免title里显示为“：来自file:////”
-     */
-    public boolean onJsConfirm(WebView view, String url, String message,
-            final JsResult result) {
-      try {
+      /**
+       * 覆盖默认的window.confirm展示界面，避免title里显示为“：来自file:////”
+       */
+      public boolean onJsConfirm(WebView view, String url, String message,
+                                 final JsResult result) {
         final AlertDialog.Builder builder = new AlertDialog.Builder(view.getContext());
-        builder.setTitle("来自"+url+"对话框")
-                .setMessage(message)
-                .setPositiveButton("确定",new OnClickListener() {
-                            public void onClick(DialogInterface dialog,int which) {
-                                result.confirm();
-                            }
-                        })
-                .setNeutralButton("取消", new OnClickListener() {
-                    public void onClick(DialogInterface dialog, int which) {
-                        result.cancel();
-                    }
-                });
-        builder.setOnCancelListener(new OnCancelListener() {
-            @Override
-            public void onCancel(DialogInterface dialog) {
-                result.cancel();
+        builder.setTitle("来自" + url + "对话框")
+          .setMessage(message)
+          .setPositiveButton("确定", new OnClickListener() {
+            public void onClick(DialogInterface dialog, int which) {
+              result.confirm();
             }
+          })
+          .setNeutralButton("取消", new OnClickListener() {
+            public void onClick(DialogInterface dialog, int which) {
+              result.cancel();
+            }
+          });
+        builder.setOnCancelListener(new OnCancelListener() {
+          @Override
+          public void onCancel(DialogInterface dialog) {
+            result.cancel();
+          }
         });
 
         // 屏蔽keycode等于84之类的按键，避免按键后导致对话框消息而页面无法再弹出对话框的问题
         builder.setOnKeyListener(new OnKeyListener() {
-            @Override
-            public boolean onKey(DialogInterface dialog, int keyCode,KeyEvent event) {
-                return true;
-            }
+          @Override
+          public boolean onKey(DialogInterface dialog, int keyCode, KeyEvent event) {
+            return true;
+          }
         });
         // 禁止响应按back键的事件
         // builder.setCancelable(false);
         AlertDialog dialog = builder.create();
         dialog.show();
-      } catch (Exception e) {
-        e.printStackTrace();
-      }
-      return true;
+        return true;
         // return super.onJsConfirm(view, url, message, result);
-    }
+      }
 
-    /**
-     * 覆盖默认的window.prompt展示界面，避免title里显示为“：来自file:////”
-     * window.prompt('请输入您的域名地址', '618119.com');
-     */
-    public boolean onJsPrompt(WebView view, String url, String message,
-            String defaultValue, final JsPromptResult result) {
-      try {
+      /**
+       * 覆盖默认的window.prompt展示界面，避免title里显示为“：来自file:////”
+       * window.prompt('请输入您的域名地址', '618119.com');
+       */
+      public boolean onJsPrompt(WebView view, String url, String message,
+                                String defaultValue, final JsPromptResult result) {
         final AlertDialog.Builder builder = new AlertDialog.Builder(view.getContext());
 
-        builder.setTitle("来自"+url+"对话框").setMessage(message);
+        builder.setTitle("来自" + url + "对话框").setMessage(message);
 
         final EditText et = new EditText(view.getContext());
         et.setSingleLine();
         et.setText(defaultValue);
         builder.setView(et)
-                .setPositiveButton("确定", new OnClickListener() {
-                    public void onClick(DialogInterface dialog, int which) {
-                        result.confirm(et.getText().toString());
-                    }
+          .setPositiveButton("确定", new OnClickListener() {
+            public void onClick(DialogInterface dialog, int which) {
+              result.confirm(et.getText().toString());
+            }
 
-                })
-                .setNeutralButton("取消", new OnClickListener() {
-                    public void onClick(DialogInterface dialog, int which) {
-                        result.cancel();
-                    }
-                });
+          })
+          .setNeutralButton("取消", new OnClickListener() {
+            public void onClick(DialogInterface dialog, int which) {
+              result.cancel();
+            }
+          });
 
         // 屏蔽keycode等于84之类的按键，避免按键后导致对话框消息而页面无法再弹出对话框的问题
         builder.setOnKeyListener(new OnKeyListener() {
-            public boolean onKey(DialogInterface dialog, int keyCode,KeyEvent event) {
-                return true;
-            }
+          public boolean onKey(DialogInterface dialog, int keyCode, KeyEvent event) {
+            return true;
+          }
         });
 
         // 禁止响应按back键的事件
         // builder.setCancelable(false);
         AlertDialog dialog = builder.create();
         dialog.show();
-      } catch (Exception e) {
-        e.printStackTrace();
-      }
-      return true;
+        return true;
         // return super.onJsPrompt(view, url, message, defaultValue,
         // result);
-    }
+      }
 
       @Override
       public void onProgressChanged(WebView webView, int newProgress) {
@@ -348,6 +342,7 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
     if (ReactBuildConfig.DEBUG && Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
       WebView.setWebContentsDebuggingEnabled(true);
     }
+
     webView.setDownloadListener(new DownloadListener() {
       public void onDownloadStart(String url, String userAgent, String contentDisposition, String mimetype, long contentLength) {
         RNCWebViewModule module = getModule(reactContext);
@@ -704,10 +699,9 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
       super.onPageFinished(webView, url);
 
       if (!mLastLoadFailed) {
-        RNCWebView reactWebView = (RNCWebView) webView;
+        /*RNCWebView reactWebView = (RNCWebView) webView;
 
-        reactWebView.callInjectedJavaScript();
-
+        reactWebView.callInjectedJavaScript();*/
         emitFinishEvent(webView, url);
       }
     }
@@ -715,8 +709,9 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
     @Override
     public void onPageStarted(WebView webView, String url, Bitmap favicon) {
       super.onPageStarted(webView, url, favicon);
+      RNCWebView reactWebView = (RNCWebView) webView;
+      reactWebView.callInjectedJavaScript();
       mLastLoadFailed = false;
-
       dispatchEvent(
         webView,
         new TopLoadingStartEvent(
