@@ -2,6 +2,7 @@ package com.reactnativecommunity.webview;
 
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
+import android.app.Activity;
 import android.app.DownloadManager;
 import android.content.Context;
 import android.content.Intent;
@@ -27,6 +28,7 @@ import android.webkit.WebViewClient;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.LifecycleEventListener;
+import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
@@ -117,17 +119,16 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
   // Use `webView.loadUrl("about:blank")` to reliably reset the view
   // state and release page resources (including any running JavaScript).
   protected static final String BLANK_URL = "about:blank";
+  private ReactApplicationContext reactContext;
+
   protected WebViewConfig mWebViewConfig;
 
-  public RNCWebViewManager() {
+  public RNCWebViewManager(ReactApplicationContext _reactContext) {
+    reactContext = _reactContext;
     mWebViewConfig = new WebViewConfig() {
       public void configWebView(WebView webView) {
       }
     };
-  }
-
-  public RNCWebViewManager(WebViewConfig webViewConfig) {
-    mWebViewConfig = webViewConfig;
   }
 
   protected static void dispatchEvent(WebView webView, Event event) {
@@ -322,15 +323,16 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
     settings.setBuiltInZoomControls(true);
     settings.setDisplayZoomControls(false);
     settings.setDomStorageEnabled(true);
+    settings.setAllowFileAccess(true);
+    settings.setAllowContentAccess(true);
     settings.setRenderPriority(WebSettings.RenderPriority.HIGH);
-    settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
-    settings.setAllowFileAccess(false);
-    settings.setAllowContentAccess(false);
+    settings.setUseWideViewPort(true);//關鍵點
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
-      settings.setAllowFileAccessFromFileURLs(false);
-      setAllowUniversalAccessFromFileURLs(webView, false);
+      settings.setAllowFileAccessFromFileURLs(true);
+      setAllowUniversalAccessFromFileURLs(webView, true);
     }
     setMixedContentMode(webView, "never");
+
     // Fixes broken full-screen modals/galleries due to body height being 0.
     webView.setLayoutParams(
       new LayoutParams(LayoutParams.MATCH_PARENT,
@@ -403,7 +405,7 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
       Context ctx = view.getContext();
       if (ctx != null) {
         view.getSettings().setAppCachePath(ctx.getCacheDir().getAbsolutePath());
-        view.getSettings().setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
+        view.getSettings().setCacheMode(WebSettings.LOAD_DEFAULT);
         view.getSettings().setAppCacheEnabled(true);
       }
     } else {
@@ -414,16 +416,11 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
 
   @ReactProp(name = "androidHardwareAccelerationDisabled")
   public void setHardwareAccelerationDisabled(WebView view, boolean disabled) {
-    if(disabled){
-      view.setLayerType(View.LAYER_TYPE_NONE, null);
-    }else{
-      if (Build.VERSION.SDK_INT >= 11) {
-        view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
-      } else {
-        view.setLayerType(View.LAYER_TYPE_HARDWARE, null);
-      }
+    if (disabled) {
+      view.setLayerType(View.LAYER_TYPE_SOFTWARE, null);
+    } else {
+      view.setLayerType(View.LAYER_TYPE_HARDWARE, null);
     }
-
   }
 
   @ReactProp(name = "overScrollMode")
@@ -503,62 +500,68 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
 
   @ReactProp(name = "source")
   public void setSource(WebView view, @Nullable ReadableMap source) {
-    if (source != null) {
-      if (source.hasKey("html")) {
-        String html = source.getString("html");
-        if (source.hasKey("baseUrl")) {
-          view.loadDataWithBaseURL(
-            source.getString("baseUrl"), html, HTML_MIME_TYPE, HTML_ENCODING, null);
-        } else {
-          view.loadData(html, HTML_MIME_TYPE + "; charset=" + HTML_ENCODING, null);
-        }
-        return;
-      }
-      if (source.hasKey("uri")) {
-        String url = source.getString("uri");
-        String previousUrl = view.getUrl();
-        if (previousUrl != null && previousUrl.equals(url)) {
-          return;
-        }
-        if (source.hasKey("method")) {
-          String method = source.getString("method");
-          if (method.equalsIgnoreCase(HTTP_METHOD_POST)) {
-            byte[] postData = null;
-            if (source.hasKey("body")) {
-              String body = source.getString("body");
-              try {
-                postData = body.getBytes("UTF-8");
-              } catch (UnsupportedEncodingException e) {
-                postData = body.getBytes();
+    Activity _activity = reactContext.getCurrentActivity();
+    _activity.runOnUiThread(new Runnable() {
+      @Override
+      public void run() {
+        if (source != null) {
+          if (source.hasKey("html")) {
+            String html = source.getString("html");
+            if (source.hasKey("baseUrl")) {
+              view.loadDataWithBaseURL(
+                source.getString("baseUrl"), html, HTML_MIME_TYPE, HTML_ENCODING, null);
+            } else {
+              view.loadData(html, HTML_MIME_TYPE + "; charset=" + HTML_ENCODING, null);
+            }
+            return;
+          }
+          if (source.hasKey("uri")) {
+            String url = source.getString("uri");
+            String previousUrl = view.getUrl();
+            if (previousUrl != null && previousUrl.equals(url)) {
+              return;
+            }
+            if (source.hasKey("method")) {
+              String method = source.getString("method");
+              if (method.equalsIgnoreCase(HTTP_METHOD_POST)) {
+                byte[] postData = null;
+                if (source.hasKey("body")) {
+                  String body = source.getString("body");
+                  try {
+                    postData = body.getBytes("UTF-8");
+                  } catch (UnsupportedEncodingException e) {
+                    postData = body.getBytes();
+                  }
+                }
+                if (postData == null) {
+                  postData = new byte[0];
+                }
+                view.postUrl(url, postData);
+                return;
               }
             }
-            if (postData == null) {
-              postData = new byte[0];
+            HashMap<String, String> headerMap = new HashMap<>();
+            if (source.hasKey("headers")) {
+              ReadableMap headers = source.getMap("headers");
+              ReadableMapKeySetIterator iter = headers.keySetIterator();
+              while (iter.hasNextKey()) {
+                String key = iter.nextKey();
+                if ("user-agent".equals(key.toLowerCase(Locale.ENGLISH))) {
+                  if (view.getSettings() != null) {
+                    view.getSettings().setUserAgentString(headers.getString(key));
+                  }
+                } else {
+                  headerMap.put(key, headers.getString(key));
+                }
+              }
             }
-            view.postUrl(url, postData);
+            view.loadUrl(url, headerMap);
             return;
           }
         }
-        HashMap<String, String> headerMap = new HashMap<>();
-        if (source.hasKey("headers")) {
-          ReadableMap headers = source.getMap("headers");
-          ReadableMapKeySetIterator iter = headers.keySetIterator();
-          while (iter.hasNextKey()) {
-            String key = iter.nextKey();
-            if ("user-agent".equals(key.toLowerCase(Locale.ENGLISH))) {
-              if (view.getSettings() != null) {
-                view.getSettings().setUserAgentString(headers.getString(key));
-              }
-            } else {
-              headerMap.put(key, headers.getString(key));
-            }
-          }
-        }
-        view.loadUrl(url, headerMap);
-        return;
+        view.loadUrl(BLANK_URL);
       }
-    }
-    view.loadUrl(BLANK_URL);
+    });
   }
 
   @ReactProp(name = "onContentSizeChange")
@@ -704,9 +707,9 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
       super.onPageFinished(webView, url);
 
       if (!mLastLoadFailed) {
-        RNCWebView reactWebView = (RNCWebView) webView;
+       /* RNCWebView reactWebView = (RNCWebView) webView;
 
-        //reactWebView.callInjectedJavaScript();
+        reactWebView.callInjectedJavaScript();*/
 
         emitFinishEvent(webView, url);
       }
@@ -715,10 +718,9 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
     @Override
     public void onPageStarted(WebView webView, String url, Bitmap favicon) {
       super.onPageStarted(webView, url, favicon);
+      mLastLoadFailed = false;
       RNCWebView reactWebView = (RNCWebView) webView;
       reactWebView.callInjectedJavaScript();
-      mLastLoadFailed = false;
-
       dispatchEvent(
         webView,
         new TopLoadingStartEvent(
@@ -873,7 +875,6 @@ public class RNCWebViewManager extends SimpleViewManager<WebView> {
       if (messagingEnabled == enabled) {
         return;
       }
-
       messagingEnabled = enabled;
 
       if (enabled) {
